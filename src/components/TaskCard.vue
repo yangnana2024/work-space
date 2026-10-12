@@ -3,38 +3,32 @@ import { nextTick, ref } from 'vue'
 import type { Task, TaskPriority, TaskStatus } from '../types/task'
 import TaskPriorityPicker from './TaskPriorityPicker.vue'
 import TaskStatusPicker from './TaskStatusPicker.vue'
-
 const props = withDefaults(defineProps<{
   task: Task
   layout?: 'list' | 'kanban'
 }>(), {
   layout: 'list',
 })
-
 const emit = defineEmits<{
   toggle: [task: Task]
   delete: [task: Task]
-  move: [payload: { taskId: string; status: TaskStatus }]
-  priority: [payload: { taskId: string; priority: TaskPriority }]
-  dueDate: [payload: { taskId: string; dueDate: string }]
+  move: [payload: { taskId: number; status: TaskStatus }]
+  priority: [payload: { taskId: number; priority: TaskPriority }]
+  dueDate: [payload: { taskId: number; dueDate: string }]
   edit: [task: Task]
 }>()
-
 const priorityLabels = {
   low: '低优先级',
   medium: '中优先级',
   high: '高优先级',
 }
-
 const isDeleteConfirmOpen = ref(false)
 const dueDateInput = ref<HTMLInputElement | null>(null)
 const deleteTrigger = ref<HTMLButtonElement | null>(null)
 const cancelDeleteButton = ref<HTMLButtonElement | null>(null)
-
 function openDueDatePicker() {
   const input = dueDateInput.value
   if (!input) return
-
   try {
     if (typeof input.showPicker === 'function') {
       input.showPicker()
@@ -43,25 +37,20 @@ function openDueDatePicker() {
   } catch {
     // Fall back for browsers that do not allow showPicker in this context.
   }
-
   input.click()
 }
-
 function updateDueDate(event: Event) {
   const dueDate = (event.currentTarget as HTMLInputElement).value
   if (dueDate) emit('dueDate', { taskId: props.task.id, dueDate })
 }
-
 function openDeleteConfirm() {
   isDeleteConfirmOpen.value = true
   nextTick(() => cancelDeleteButton.value?.focus())
 }
-
 function closeDeleteConfirm() {
   isDeleteConfirmOpen.value = false
   nextTick(() => deleteTrigger.value?.focus())
 }
-
 function confirmDelete(task: Task) {
   isDeleteConfirmOpen.value = false
   emit('delete', task)

@@ -4,7 +4,7 @@ import KanbanBoard from './components/KanbanBoard.vue'
 import TaskModal from './components/TaskModal.vue'
 import TaskList from './components/TaskList.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
-import { addTask, deleteTask, taskStore, updateTask } from './stores/taskStore'
+import { addTask, deleteTask, taskStore, updateTask, fetchTasks } from './stores/taskStore'
 import { appReleaseDate, appVersion, changelogHtml } from './appMetadata'
 import type { Task } from './types/task'
 
@@ -12,7 +12,6 @@ const isTaskModalOpen = ref(false)
 const editingTask = ref<Task | null>(null)
 const isMobileMenuOpen = ref(false)
 const activeView = ref<'list' | 'kanban'>('list')
-
 const completedCount = computed(() => taskStore.tasks.filter((task) => task.status === 'done').length)
 
 // 更新记录 details 点击空白关闭逻辑
@@ -24,9 +23,13 @@ function handlePageClick(event: MouseEvent) {
     el.open = false
   }
 }
+
 onMounted(() => {
   document.addEventListener('click', handlePageClick)
+  // 初始化拉取云端任务
+  fetchTasks()
 })
+
 onUnmounted(() => {
   document.removeEventListener('click', handlePageClick)
 })
@@ -38,17 +41,17 @@ function toggleTask(updatedTask: Task) {
   })
 }
 
-function moveTask(payload: { taskId: string; status: Task['status'] }) {
+function moveTask(payload: { taskId: number; status: Task['status'] }) {
   const task = taskStore.tasks.find((item) => item.id === payload.taskId)
   if (task) updateTask({ ...task, status: payload.status })
 }
 
-function updateTaskPriority(payload: { taskId: string; priority: Task['priority'] }) {
+function updateTaskPriority(payload: { taskId: number; priority: Task['priority'] }) {
   const task = taskStore.tasks.find((item) => item.id === payload.taskId)
   if (task) updateTask({ ...task, priority: payload.priority })
 }
 
-function updateTaskDueDate(payload: { taskId: string; dueDate: string }) {
+function updateTaskDueDate(payload: { taskId: number; dueDate: string }) {
   const task = taskStore.tasks.find((item) => item.id === payload.taskId)
   if (task) updateTask({ ...task, dueDate: payload.dueDate })
 }
@@ -69,7 +72,6 @@ function saveTask(updatedTask: Task) {
     addTask(updatedTask)
     return
   }
-
   updateTask({
     ...updatedTask,
     id: originalTask.id,

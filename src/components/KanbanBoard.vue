@@ -2,26 +2,22 @@
 import { computed } from 'vue'
 import type { Task, TaskStatus } from '../types/task'
 import TaskCard from './TaskCard.vue'
-
 const props = defineProps<{
   tasks: Task[]
 }>()
-
 const emit = defineEmits<{
-  move: [payload: { taskId: string; status: TaskStatus }]
+  move: [payload: { taskId: number; status: TaskStatus }]
   toggle: [task: Task]
   delete: [task: Task]
-  priority: [payload: { taskId: string; priority: Task['priority'] }]
-  dueDate: [payload: { taskId: string; dueDate: string }]
+  priority: [payload: { taskId: number; priority: Task['priority'] }]
+  dueDate: [payload: { taskId: number; dueDate: string }]
   edit: [task: Task]
 }>()
-
 const columns: { title: string; status: TaskStatus }[] = [
   { title: '待办', status: 'todo' },
   { title: '进行中', status: 'in-progress' },
   { title: '已完成', status: 'done' },
 ]
-
 const tasksByStatus = computed(() =>
   Object.fromEntries(
     columns.map((column) => [
@@ -30,22 +26,25 @@ const tasksByStatus = computed(() =>
     ]),
   ) as Record<TaskStatus, Task[]>,
 )
-
 function startDrag(event: DragEvent, task: Task) {
   if (!event.dataTransfer) return
   event.dataTransfer.effectAllowed = 'move'
-  event.dataTransfer.setData('text/plain', task.id)
+  // number 转为字符串存入拖拽数据
+  event.dataTransfer.setData('text/plain', String(task.id))
 }
-
 function allowDrop(event: DragEvent) {
   event.preventDefault()
   if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
 }
-
 function dropTask(event: DragEvent, status: TaskStatus) {
   event.preventDefault()
-  const taskId = event.dataTransfer?.getData('text/plain')
-  if (taskId) emit('move', { taskId, status })
+  const rawId = event.dataTransfer?.getData('text/plain')
+  if (!rawId) return
+  // 字符串转回数字
+  const taskId = Number(rawId)
+  // 校验是否是合法数字
+  if (!Number.isInteger(taskId)) return
+  emit('move', { taskId, status })
 }
 </script>
 

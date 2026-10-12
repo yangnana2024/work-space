@@ -3,34 +3,28 @@ import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import type { Task, TaskPriority, TaskStatus } from '../types/task'
 import TaskPriorityPicker from './TaskPriorityPicker.vue'
 import TaskStatusPicker from './TaskStatusPicker.vue'
-
 const props = defineProps<{
   modelValue: boolean
   task: Task | null
 }>()
-
 const emit = defineEmits<{
   'update:modelValue': [isOpen: boolean]
   create: []
-  submit: [task: Task]
+  submit: [task: Task | Omit<Task, 'id' | 'createdAt'>]
 }>()
-
 function getLocalDate() {
   const now = new Date()
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
     .toISOString()
     .slice(0, 10)
 }
-
 function formatDate(date: string) {
   const [year, month, day] = date.split('-')
   return year && month && day ? `${year}年${month}月${day}日` : '请选择日期'
 }
-
 function openDatePicker() {
   const input = dueDateInput.value
   if (!input) return
-
   try {
     if (typeof input.showPicker === 'function') {
       input.showPicker()
@@ -39,10 +33,8 @@ function openDatePicker() {
   } catch {
     // Fall back for browsers that do not allow showPicker in this context.
   }
-
   input.click()
 }
-
 const titleError = ref(false)
 const dueDateInput = ref<HTMLInputElement | null>(null)
 const form = reactive({
@@ -52,7 +44,6 @@ const form = reactive({
   priority: 'medium' as TaskPriority,
   dueDate: getLocalDate(),
 })
-
 watch(
   () => [props.modelValue, props.task] as const,
   ([isOpen, task]) => {
@@ -66,16 +57,13 @@ watch(
   },
   { immediate: true },
 )
-
 function closeModal() {
   emit('update:modelValue', false)
   titleError.value = false
 }
-
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape' && props.modelValue) closeModal()
 }
-
 function submitTask() {
   const title = form.title.trim()
   if (!title) {
@@ -83,17 +71,27 @@ function submitTask() {
     return
   }
 
-  const now = new Date()
-
-  emit('submit', {
-    id: props.task?.id ?? crypto.randomUUID(),
-    title,
-    description: form.description.trim(),
-    status: form.status,
-    priority: form.priority,
-    dueDate: form.dueDate,
-    createdAt: props.task?.createdAt ?? now.toISOString(),
-  })
+  if (props.task) {
+    // 编辑任务：保留原始 id 和 createdAt
+    emit('submit', {
+      id: props.task.id,
+      title,
+      description: form.description.trim(),
+      status: form.status,
+      priority: form.priority,
+      dueDate: form.dueDate,
+      createdAt: props.task.createdAt,
+    })
+  } else {
+    // 新建任务：id、createdAt 后端D1自动生成，前端不传递
+    emit('submit', {
+      title,
+      description: form.description.trim(),
+      status: form.status,
+      priority: form.priority,
+      dueDate: form.dueDate,
+    })
+  }
 
   form.title = ''
   form.description = ''
@@ -102,7 +100,6 @@ function submitTask() {
   form.dueDate = getLocalDate()
   closeModal()
 }
-
 onMounted(() => window.addEventListener('keydown', handleKeydown))
 onUnmounted(() => window.removeEventListener('keydown', handleKeydown))
 </script>

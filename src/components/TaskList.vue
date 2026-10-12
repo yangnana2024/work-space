@@ -2,35 +2,31 @@
 import { computed, ref } from 'vue'
 import type { Task, TaskStatus } from '../types/task'
 import TaskCard from './TaskCard.vue'
-
 const props = defineProps<{
   tasks: Task[]
 }>()
-
 const emit = defineEmits<{
   toggle: [task: Task]
   delete: [task: Task]
-  move: [payload: { taskId: string; status: TaskStatus }]
-  priority: [payload: { taskId: string; priority: Task['priority'] }]
-  dueDate: [payload: { taskId: string; dueDate: string }]
+  move: [payload: { taskId: number; status: TaskStatus }]
+  priority: [payload: { taskId: number; priority: Task['priority'] }]
+  dueDate: [payload: { taskId: number; dueDate: string }]
   edit: [task: Task]
 }>()
-
 const filters: { label: string; value: TaskStatus | 'all' }[] = [
   { label: '全部', value: 'all' },
   { label: '待办', value: 'todo' },
   { label: '进行中', value: 'in-progress' },
   { label: '完成', value: 'done' },
 ]
-
 const activeFilter = ref<TaskStatus | 'all'>('all')
-
 const visibleTasks = computed(() =>
   [...props.tasks]
     .filter((task) => activeFilter.value === 'all' || task.status === activeFilter.value)
     .sort((first, second) => Date.parse(second.createdAt) - Date.parse(first.createdAt)),
 )
 </script>
+
 
 <template>
   <section aria-label="任务列表" class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm shadow-slate-200/50 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/20">
