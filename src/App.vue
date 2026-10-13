@@ -4,6 +4,11 @@ import KanbanBoard from './components/KanbanBoard.vue'
 import TaskModal from './components/TaskModal.vue'
 import TaskList from './components/TaskList.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
+// ========== 新增导入 ==========
+import AuthModal from './components/AuthModal.vue'
+import Avatar from './components/Avatar.vue'
+import { logout } from './utils/storage'
+// ==============================
 import { addTask, deleteTask, taskStore, updateTask, fetchTasks } from './stores/taskStore'
 import { appReleaseDate, appVersion, changelogHtml } from './appMetadata'
 import type { Task } from './types/task'
@@ -12,6 +17,12 @@ const isTaskModalOpen = ref(false)
 const editingTask = ref<Task | null>(null)
 const isMobileMenuOpen = ref(false)
 const activeView = ref<'list' | 'kanban'>('list')
+
+// ========== 新增登录相关状态 ==========
+const isLoggedIn = ref(false)
+const currentUser = ref<{ id: number; username: string } | null>(null)
+// =====================================
+
 const completedCount = computed(() => taskStore.tasks.filter((task) => task.status === 'done').length)
 
 // 更新记录 details 点击空白关闭逻辑
@@ -26,13 +37,35 @@ function handlePageClick(event: MouseEvent) {
 
 onMounted(() => {
   document.addEventListener('click', handlePageClick)
-  // 初始化拉取云端任务
-  fetchTasks()
+
+  // ========== 修改：初始化先检查登录态，已登录再拉取任务 ==========
+  const token = localStorage.getItem('workspace_token')
+  const userStr = localStorage.getItem('workspace_user')
+  if (token && userStr) {
+    currentUser.value = JSON.parse(userStr)
+    isLoggedIn.value = true
+    fetchTasks()
+  }
+  // =============================================================
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handlePageClick)
 })
+
+// ========== 新增登录登出方法 ==========
+function handleLoginSuccess(user: { id: number; username: string }) {
+  currentUser.value = user
+  isLoggedIn.value = true
+  fetchTasks()
+}
+
+function handleLogout() {
+  logout()
+  isLoggedIn.value = false
+  currentUser.value = null
+}
+// =====================================
 
 function toggleTask(updatedTask: Task) {
   updateTask({
@@ -86,7 +119,12 @@ function selectView(view: 'list' | 'kanban') {
 </script>
 
 <template>
-  <div class="flex min-h-screen flex-col bg-[#f7f8fc] text-left text-slate-800 transition-colors dark:bg-slate-950 dark:text-slate-100">
+  <!-- ========== 新增：未登录时只显示登录弹窗 ========== -->
+  <AuthModal v-if="!isLoggedIn" @success="handleLoginSuccess" />
+  <!-- ================================================= -->
+
+  <!-- 登录后显示主界面，原有最外层 div 加 v-else -->
+  <div v-else class="flex min-h-screen flex-col bg-[#f7f8fc] text-left text-slate-800 transition-colors dark:bg-slate-950 dark:text-slate-100">
     <header class="border-b border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
       <div class="mx-auto max-w-6xl px-5 sm:px-8">
         <div class="flex h-16 items-center justify-between">
@@ -94,9 +132,27 @@ function selectView(view: 'list' | 'kanban') {
             <span class="grid size-9 place-items-center rounded-xl bg-indigo-600 text-sm font-bold text-white shadow-sm shadow-indigo-200">W</span>
             <span class="text-base font-semibold">Work Space</span>
           </a>
+
           <div class="flex items-center gap-2 sm:gap-3">
-            <span class="hidden text-sm text-slate-500 dark:text-slate-400 sm:inline">个人工作区</span>
-            <span class="hidden size-9 place-items-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 sm:grid">WS</span>
+            <!-- ========== 修改：右上角替换为用户信息 ========== -->
+            <div class="hidden items-center gap-2 sm:flex">
+              <Avatar :username="currentUser?.username || ''" :size="32" />
+              <span class="text-sm text-slate-500 dark:text-slate-400">
+                {{ currentUser?.username }}
+              </span>
+              <button
+                @click="handleLogout"
+                class="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                退出
+              </button>
+            </div>
+            <!-- 移动端简化显示头像 -->
+            <div class="flex items-center sm:hidden">
+              <Avatar :username="currentUser?.username || ''" :size="28" />
+            </div>
+            <!-- ================================================= -->
+
             <ThemeToggle />
             <button
               type="button"
@@ -133,6 +189,14 @@ function selectView(view: 'list' | 'kanban') {
             @click="selectView('kanban')"
           >
             看板
+          </button>
+          <!-- 移动端增加退出按钮 -->
+          <button
+            type="button"
+            class="min-h-11 w-full rounded-md px-3 text-left text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+            @click="handleLogout"
+          >
+            退出登录
           </button>
         </nav>
       </div>
@@ -211,7 +275,6 @@ function selectView(view: 'list' | 'kanban') {
           Work Space<span class="mx-1 text-slate-500 dark:text-slate-400">·</span>v{{ appVersion }}
           <span class="mx-2">更新于 <time :datetime="appReleaseDate">{{ appReleaseDate }}</time></span>
         </div>
-
         <!-- 右侧更新记录 -->
         <details
           ref="changelogDetails"
