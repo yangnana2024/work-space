@@ -7,8 +7,10 @@ const props = withDefaults(defineProps<{
   taskTitle: string
   variant?: 'badge' | 'field'
   id?: string
+  disabled?: boolean
 }>(), {
   variant: 'badge',
+  disabled: false,
 })
 
 const emit = defineEmits<{
@@ -40,6 +42,7 @@ function badgeClass(status: TaskStatus) {
 }
 
 function openPicker() {
+  if (props.disabled) return
   isOpen.value = true
   nextTick(() => firstOption.value?.focus())
 }
@@ -60,7 +63,8 @@ function selectStatus(status: TaskStatus) {
     <button
       ref="trigger"
       type="button"
-      class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md p-0 focus-visible:outline-2 focus-visible:outline-indigo-500"
+      :disabled="props.disabled"
+      class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md p-0 focus-visible:outline-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
       :aria-label="`更改“${taskTitle}”的状态，当前为${statusLabels[modelValue]}`"
       aria-haspopup="dialog"
       @click="openPicker"
@@ -76,9 +80,10 @@ function selectStatus(status: TaskStatus) {
     :id="id"
     ref="trigger"
     type="button"
+    :disabled="props.disabled"
     aria-haspopup="dialog"
     :aria-label="`更改“${taskTitle}”的状态，当前为${statusLabels[modelValue]}`"
-    class="flex min-h-11 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 text-left transition hover:border-slate-400 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-slate-500"
+    class="flex min-h-11 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 text-left transition hover:border-slate-400 focus-visible:outline-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-slate-300 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-slate-500 dark:disabled:hover:border-slate-700"
     @click="openPicker"
   >
     <span class="rounded-md px-2 py-1 text-xs font-medium" :class="badgeClass(modelValue)">

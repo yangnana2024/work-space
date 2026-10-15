@@ -1,7 +1,7 @@
 import { reactive } from 'vue'
-import type { Task } from '../types/task'
+import type { Task, TaskCreateData } from '../types/task'
 // 导入云端接口函数
-import { loadTasks, addTask as apiAddTask, updateTask as apiUpdateTask, deleteTask as apiDeleteTask } from '../utils/storage'
+import { loadTasks, addTask as apiAddTask, updateTask as apiUpdateTask, deleteTask as apiDeleteTask, leaveTaskShare as apiLeaveTaskShare } from '../utils/storage'
 
 export const taskStore = reactive({
   tasks: [] as Task[],
@@ -23,9 +23,10 @@ export async function fetchTasks() {
 }
 
 // 新增任务：调用后端API，成功后重新拉取列表
-export async function addTask(task: Omit<Task, 'id'>) {
-  await apiAddTask(task)
+export async function addTask(task: TaskCreateData) {
+  const taskId = await apiAddTask(task)
   await fetchTasks()
+  return taskId
 }
 
 // 更新任务
@@ -37,5 +38,10 @@ export async function updateTask(updatedTask: Task) {
 // 删除任务
 export async function deleteTask(deletedTask: Task) {
   await apiDeleteTask(deletedTask.id)
+  await fetchTasks()
+}
+
+export async function leaveSharedTask(task: Task) {
+  await apiLeaveTaskShare(task.id)
   await fetchTasks()
 }

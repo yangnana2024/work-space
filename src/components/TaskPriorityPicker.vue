@@ -7,8 +7,10 @@ const props = withDefaults(defineProps<{
   taskTitle: string
   variant?: 'badge' | 'field'
   id?: string
+  disabled?: boolean
 }>(), {
   variant: 'badge',
+  disabled: false,
 })
 
 const emit = defineEmits<{
@@ -38,6 +40,7 @@ const trigger = ref<HTMLButtonElement | null>(null)
 const firstOption = ref<HTMLButtonElement | null>(null)
 
 function openPicker() {
+  if (props.disabled) return
   isOpen.value = true
   nextTick(() => firstOption.value?.focus())
 }
@@ -58,8 +61,9 @@ function selectPriority(priority: TaskPriority) {
     v-if="variant === 'badge'"
     ref="trigger"
     type="button"
+    :disabled="props.disabled"
     class="rounded-md px-2 py-1 text-xs font-medium transition hover:opacity-90 focus-visible:outline-2 focus-visible:outline-indigo-500"
-    :class="badgeClass[modelValue]"
+    :class="[badgeClass[modelValue], 'disabled:cursor-not-allowed disabled:hover:opacity-100 disabled:opacity-60']"
     :aria-label="`更改“${taskTitle}”的优先级，当前为${priorityLabels[modelValue]}`"
     aria-haspopup="dialog"
     @click="openPicker"
@@ -72,9 +76,10 @@ function selectPriority(priority: TaskPriority) {
     :id="id"
     ref="trigger"
     type="button"
+    :disabled="props.disabled"
     aria-haspopup="dialog"
     :aria-label="`更改“${taskTitle}”的优先级，当前为${priorityLabels[modelValue]}`"
-    class="flex min-h-11 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 text-left transition hover:border-slate-400 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-slate-500"
+    class="flex min-h-11 w-full items-center justify-between rounded-md border border-slate-300 bg-white px-3 text-left transition hover:border-slate-400 focus-visible:outline-2 focus-visible:outline-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-slate-300 dark:border-slate-700 dark:bg-slate-950 dark:hover:border-slate-500 dark:disabled:hover:border-slate-700"
     @click="openPicker"
   >
     <span class="rounded-md px-2 py-1 text-xs font-medium" :class="badgeClass[modelValue]">

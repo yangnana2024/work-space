@@ -2,7 +2,7 @@
   <div
     class="flex items-center justify-center rounded-full text-white font-medium shrink-0"
     :style="{ backgroundColor: bgColor, width: size + 'px', height: size + 'px', fontSize: Math.floor(size * 0.45) + 'px' }"
-    :title="username"
+    :title="title ?? username"
   >
     {{ firstChar }}
   </div>
@@ -14,6 +14,7 @@ import { computed } from 'vue'
 const props = withDefaults(defineProps<{
   username: string
   size?: number
+  title?: string
 }>(), {
   size: 32
 })

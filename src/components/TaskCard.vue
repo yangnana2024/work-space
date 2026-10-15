@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import type { Task, TaskPriority, TaskStatus } from '../types/task'
 import TaskPriorityPicker from './TaskPriorityPicker.vue'
 import TaskStatusPicker from './TaskStatusPicker.vue'
+import Avatar from './Avatar.vue'
 const props = withDefaults(defineProps<{
   task: Task
   layout?: 'list' | 'kanban'
@@ -12,10 +13,12 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   toggle: [task: Task]
   delete: [task: Task]
+  leaveShare: [task: Task]
   move: [payload: { taskId: number; status: TaskStatus }]
   priority: [payload: { taskId: number; priority: TaskPriority }]
   dueDate: [payload: { taskId: number; dueDate: string }]
   edit: [task: Task]
+  manageShare: [task: Task]
 }>()
 const priorityLabels = {
   low: '低优先级',
@@ -23,8 +26,11 @@ const priorityLabels = {
   high: '高优先级',
 }
 const isDeleteConfirmOpen = ref(false)
+const canEdit = computed(() => props.task.currentRole === 'owner' || props.task.currentRole === 'editor')
+const canDelete = computed(() => props.task.currentRole === 'owner')
+const canLeaveShare = computed(() => Boolean(props.task.currentRole && props.task.currentRole !== 'owner'))
 const dueDateInput = ref<HTMLInputElement | null>(null)
-const deleteTrigger = ref<HTMLButtonElement | null>(null)
+const taskActionTrigger = ref<HTMLButtonElement | null>(null)
 const cancelDeleteButton = ref<HTMLButtonElement | null>(null)
 function openDueDatePicker() {
   const input = dueDateInput.value
@@ -43,23 +49,25 @@ function updateDueDate(event: Event) {
   const dueDate = (event.currentTarget as HTMLInputElement).value
   if (dueDate) emit('dueDate', { taskId: props.task.id, dueDate })
 }
-function openDeleteConfirm() {
+function openTaskActionConfirm(event: MouseEvent) {
+  taskActionTrigger.value = event.currentTarget as HTMLButtonElement
   isDeleteConfirmOpen.value = true
   nextTick(() => cancelDeleteButton.value?.focus())
 }
 function closeDeleteConfirm() {
   isDeleteConfirmOpen.value = false
-  nextTick(() => deleteTrigger.value?.focus())
+  nextTick(() => taskActionTrigger.value?.focus())
 }
-function confirmDelete(task: Task) {
+function confirmTaskAction(task: Task) {
   isDeleteConfirmOpen.value = false
-  emit('delete', task)
+  if (canDelete.value) emit('delete', task)
+  else if (canLeaveShare.value) emit('leaveShare', task)
 }
 </script>
 
 <template>
   <article
-    class="grid gap-4 rounded-md border border-slate-200 border-l-4 bg-white px-4 py-4 shadow-sm transition-transform duration-200 hover:scale-[1.02] dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/20"
+    class="grid gap-3 rounded-md border border-slate-200 border-l-4 bg-white px-3 py-3 shadow-sm transition-transform duration-200 hover:scale-[1.02] dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/20 sm:px-4 sm:py-4 sm:gap-4"
     :class="[
       layout === 'kanban' ? 'grid-cols-1' : 'sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center',
       {
@@ -79,36 +87,92 @@ function confirmDelete(task: Task) {
           @change="emit('toggle', task)"
         />
       </label>
-      <div class="min-w-0">
+      <div class="min-w-0 flex-1">
+        <!-- 标题：单行截断，超出省略 -->
         <h3
-          class="m-0 text-sm font-semibold text-slate-800 dark:text-slate-100"
+          class="m-0 text-sm font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap overflow-hidden text-ellipsis"
           :class="task.status === 'done' ? 'text-slate-400 line-through dark:text-slate-500' : ''"
         >
           {{ task.title }}
         </h3>
-        <p class="mb-0 mt-1.5 text-sm leading-5 text-slate-500 dark:text-slate-400">{{ task.description }}</p>
-        <div class="mt-3 flex flex-wrap items-center gap-2">
-          <TaskStatusPicker
-            :model-value="task.status"
-            :task-title="task.title"
-            @update:model-value="emit('move', { taskId: task.id, status: $event })"
-          />
-          <TaskPriorityPicker
-            :model-value="task.priority"
-            :task-title="task.title"
-            variant="badge"
-            @update:model-value="emit('priority', { taskId: task.id, priority: $event })"
-          />
+        <!-- 描述：最多2行，超出省略 -->
+        <p class="mb-0 mt-1.5 text-sm leading-5 text-slate-500 dark:text-slate-400 line-clamp-2">
+          {{ task.description }}
+        </p>
+        <div class="mt-3 space-y-2">
+          <div
+            v-if="(task.currentRole === 'owner' && (task.shareCount ?? 0) > 0) || (task.currentRole && task.currentRole !== 'owner')"
+            class="flex flex-wrap items-center gap-2"
+          >
+            <button
+              v-if="task.currentRole === 'owner' && (task.shareCount ?? 0) > 0"
+              type="button"
+              class="flex items-center gap-1.5 rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 transition hover:opacity-90 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:bg-blue-950 dark:text-blue-300 whitespace-nowrap"
+              :aria-label="`已共享给 ${task.shareCount} 位成员，管理共享`"
+              @click.stop="emit('manageShare', task)"
+            >
+              <span class="flex -space-x-2" aria-hidden="true">
+                <span
+                  v-for="member in task.shareMembers ?? []"
+                  :key="member.username"
+                  class="relative z-0 inline-flex shrink-0"
+                >
+                  <Avatar
+                    :username="member.username"
+                    :size="24"
+                    :title="`${member.username} · ${member.permission === 'editor' ? '可编辑' : '仅查看'}`"
+                  />
+                  <span
+                    aria-hidden="true"
+                    class="absolute -bottom-0.5 -right-0.5 size-2 rounded-full"
+                    :class="member.permission === 'editor' ? 'bg-emerald-500' : 'bg-sky-500'"
+                  />
+                </span>
+              </span>
+              已共享 · {{ task.shareCount }}
+            </button>
+            <span
+              v-if="task.currentRole && task.currentRole !== 'owner'"
+              class="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300 whitespace-nowrap"
+            >
+              {{ task.currentRole === 'editor' ? '共享任务 · 可编辑' : '共享任务 · 仅查看' }}<template v-if="task.ownerUsername"> · {{ task.ownerUsername }}</template>
+            </span>
+          </div>
+          <div class="flex flex-nowrap items-center gap-2">
+            <div class="shrink-0">
+              <TaskStatusPicker
+                v-if="canEdit"
+                :model-value="task.status"
+                :task-title="task.title"
+                @update:model-value="emit('move', { taskId: task.id, status: $event })"
+              />
+              <span v-else class="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 dark:border-slate-700 dark:text-slate-300 whitespace-nowrap">
+                {{ task.status === 'done' ? '已完成' : task.status === 'in-progress' ? '进行中' : '待办' }}
+              </span>
+            </div>
+            <div class="shrink-0">
+              <TaskPriorityPicker
+                v-if="canEdit"
+                :model-value="task.priority"
+                :task-title="task.title"
+                variant="badge"
+                @update:model-value="emit('priority', { taskId: task.id, priority: $event })"
+              />
+              <span v-else class="rounded border border-slate-200 px-2 py-1 text-xs text-slate-600 dark:border-slate-700 dark:text-slate-300 whitespace-nowrap">
+                {{ priorityLabels[task.priority] }}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-
     <div class="flex items-center justify-between gap-4 pl-7 sm:justify-end sm:pl-0">
-      <div class="relative">
+      <div class="relative min-w-0">
         <input
           ref="dueDateInput"
           type="date"
           :value="task.dueDate"
+          :disabled="!canEdit"
           :aria-label="`修改“${task.title}”的截止日期`"
           tabindex="-1"
           class="absolute inset-0 -z-10 h-full w-full opacity-0"
@@ -117,10 +181,11 @@ function confirmDelete(task: Task) {
         <button
           type="button"
           :aria-label="`修改“${task.title}”的截止日期`"
-          class="rounded-md px-2 py-1.5 text-left text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 sm:text-right"
+          :disabled="!canEdit"
+          class="rounded-md px-2 py-1.5 text-left text-xs text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-2 focus-visible:outline-indigo-500 disabled:cursor-default disabled:hover:bg-transparent dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 sm:text-right"
           @click="openDueDatePicker"
         >
-          <div class="flex items-center gap-1">
+          <div class="flex items-center gap-1 whitespace-nowrap">
             <span class="text-xs text-slate-400 dark:text-slate-500">截止日期</span>
             <time class="font-medium text-slate-600 dark:text-slate-300">{{ task.dueDate }}</time>
           </div>
@@ -137,18 +202,20 @@ function confirmDelete(task: Task) {
           编辑
         </button>
         <button
-          ref="deleteTrigger"
+          v-if="canDelete || canLeaveShare"
+          ref="taskActionTrigger"
           type="button"
-          aria-label="删除任务"
-          class="grid size-11 place-items-center rounded-md text-xl leading-none text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-2 focus-visible:outline-rose-500 dark:text-slate-500 dark:hover:bg-rose-950 dark:hover:text-rose-300"
-          @click="openDeleteConfirm"
+          :aria-label="canDelete ? '删除任务' : '从我的任务中移除共享任务'"
+          :title="canDelete ? '删除任务' : '从我的任务中移除'"
+          class="grid size-11 place-items-center rounded-md text-xl leading-none text-slate-400 transition-colors focus-visible:outline-2 dark:text-slate-500"
+          :class="canDelete ? 'hover:bg-rose-50 hover:text-rose-600 focus-visible:outline-rose-500 dark:hover:bg-rose-950 dark:hover:text-rose-300' : 'hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-indigo-500 dark:hover:bg-slate-800 dark:hover:text-slate-200'"
+          @click="openTaskActionConfirm"
         >
           ×
         </button>
       </div>
     </div>
   </article>
-
   <Teleport to="body">
     <Transition
       enter-active-class="transition-opacity duration-150"
@@ -167,13 +234,16 @@ function confirmDelete(task: Task) {
         <section
           role="alertdialog"
           aria-modal="true"
-          :aria-labelledby="`delete-title-${task.id}`"
-          :aria-describedby="`delete-description-${task.id}`"
+          :aria-labelledby="`task-action-title-${task.id}`"
+          :aria-describedby="`task-action-description-${task.id}`"
           class="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
         >
-          <h2 :id="`delete-title-${task.id}`" class="m-0 text-base font-semibold text-slate-900 dark:text-slate-100">确定删除任务？</h2>
-          <p :id="`delete-description-${task.id}`" class="mb-0 mt-2 break-words text-sm leading-6 text-slate-600 dark:text-slate-300">
-            “{{ task.title }}”删除后无法恢复。
+          <h2 :id="`task-action-title-${task.id}`" class="m-0 text-base font-semibold text-slate-900 dark:text-slate-100">
+            {{ canDelete ? '确定删除任务？' : '从我的任务中移除？' }}
+          </h2>
+          <p :id="`task-action-description-${task.id}`" class="mb-0 mt-2 break-words text-sm leading-6 text-slate-600 dark:text-slate-300">
+            <template v-if="canDelete">“{{ task.title }}”删除后无法恢复。</template>
+            <template v-else>“{{ task.title }}”将从你的列表中移除，不会删除创建者的任务。</template>
           </p>
           <div class="mt-5 flex justify-end gap-2">
             <button
@@ -187,9 +257,9 @@ function confirmDelete(task: Task) {
             <button
               type="button"
               class="min-h-11 rounded-md bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
-              @click="confirmDelete(task)"
+              @click="confirmTaskAction(task)"
             >
-              确认删除
+              {{ canDelete ? '确认删除' : '确认移除' }}
             </button>
           </div>
         </section>
