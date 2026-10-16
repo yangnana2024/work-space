@@ -22,6 +22,7 @@ const isMobileMenuOpen = ref(false)
 const isUserMenuOpen = ref(false)
 const isPasswordModalOpen = ref(false) // 修改密码弹窗
 const isPasswordSuccessOpen = ref(false) // 修改成功提示弹窗
+const isUsernameModalOpen = ref(false) // 修改用户名弹窗
 const activeView = ref<'list' | 'kanban'>('list')
 const isLogoutConfirmOpen = ref(false)
 const isCollaborationOpen = ref(false)
@@ -38,6 +39,13 @@ const passwordForm = ref({
 })
 const passwordLoading = ref(false)
 const passwordError = ref('')
+
+// 修改用户名表单与状态
+const usernameForm = ref({
+  newUsername: ''
+})
+const usernameLoading = ref(false)
+const usernameError = ref('')
 
 // ========== 新增登录相关状态 ==========
 const isLoggedIn = ref(false)
@@ -69,6 +77,14 @@ function openPasswordModal() {
   passwordError.value = ''
   isUserMenuOpen.value = false
   isPasswordModalOpen.value = true
+}
+
+// 打开修改用户名弹窗
+function openUsernameModal() {
+  usernameForm.value = { newUsername: currentUser.value?.username || '' }
+  usernameError.value = ''
+  isUserMenuOpen.value = false
+  isUsernameModalOpen.value = true
 }
 
 // 提交修改密码
@@ -122,6 +138,53 @@ async function submitPasswordChange() {
     passwordError.value = e.message || '密码修改失败，请稍后重试'
   } finally {
     passwordLoading.value = false
+  }
+}
+
+// 提交修改用户名
+async function submitUsernameChange() {
+  usernameError.value = ''
+  const newName = usernameForm.value.newUsername.trim()
+
+  // 前端基础校验
+  if (!newName) {
+    usernameError.value = '请输入新用户名'
+    return
+  }
+  if (newName.length < 2 || newName.length > 20) {
+    usernameError.value = '用户名长度需在 2-20 位之间'
+    return
+  }
+  if (newName === currentUser.value?.username) {
+    usernameError.value = '新用户名不能与当前一致'
+    return
+  }
+
+  usernameLoading.value = true
+  try {
+    const token = localStorage.getItem('workspace_token')
+    const res = await fetch('/api/auth/change-username', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ newUsername: newName })
+    })
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.error || '用户名修改失败')
+    }
+
+    // 成功后同步更新本地状态，无感刷新
+    currentUser.value!.username = newName
+    localStorage.setItem('workspace_user', JSON.stringify(currentUser.value))
+    isUsernameModalOpen.value = false
+  } catch (e) {
+    usernameError.value = e.message || '修改失败，请稍后重试'
+  } finally {
+    usernameLoading.value = false
   }
 }
 
@@ -343,6 +406,13 @@ function selectView(view: 'list' | 'kanban') {
                   <button
                     type="button"
                     class="w-full px-4 py-2 text-left text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+                    @click="openUsernameModal"
+                  >
+                    修改用户名
+                  </button>
+                  <button
+                    type="button"
+                    class="w-full px-4 py-2 text-left text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
                     @click="openPasswordModal"
                   >
                     修改密码
@@ -377,6 +447,13 @@ function selectView(view: 'list' | 'kanban') {
                   <p class="text-sm font-medium text-slate-800 dark:text-slate-100">{{ currentUser?.username }}</p>
                   <p class="text-xs text-slate-500 dark:text-slate-400">个人账号</p>
                 </div>
+                <button
+                  type="button"
+                  class="w-full px-4 py-2 text-left text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+                  @click="openUsernameModal"
+                >
+                  修改用户名
+                </button>
                 <button
                   type="button"
                   class="w-full px-4 py-2 text-left text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
@@ -452,7 +529,6 @@ function selectView(view: 'list' | 'kanban') {
         </nav>
       </div>
     </header>
-
 
     <main class="mx-auto w-full max-w-6xl flex flex-col px-5 pt-3 pb-3 sm:px-8 sm:pt-4 sm:pb-6" style="flex: 1 1 0;">
       <!-- 【固定区域】标题、统计、Tab切换（已紧凑优化） -->
@@ -680,6 +756,56 @@ function selectView(view: 'list' | 'kanban') {
               class="min-h-11 rounded-md bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-60"
             >
               {{ passwordLoading ? '提交中...' : '确认修改' }}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </Teleport>
+
+  <!-- 修改用户名弹窗 -->
+  <Teleport to="body">
+    <div
+      v-if="isUsernameModalOpen"
+      class="fixed inset-0 z-[60] grid place-items-center bg-slate-950/45 p-4"
+      @click.self="isUsernameModalOpen = false"
+      @keydown.esc.stop.prevent="isUsernameModalOpen = false"
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="username-title"
+        class="w-full max-w-sm rounded-lg border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+      >
+        <h2 id="username-title" class="m-0 text-base font-semibold text-slate-900 dark:text-slate-100">修改用户名</h2>
+        <form class="mt-4 space-y-3" @submit.prevent="submitUsernameChange">
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-300">新用户名</label>
+            <input
+              v-model="usernameForm.newUsername"
+              type="text"
+              class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:border-indigo-500 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              placeholder="请输入2-20位用户名"
+              autocomplete="username"
+            />
+          </div>
+          <p v-if="usernameError" class="m-0 text-xs text-rose-600 dark:text-rose-400">
+            {{ usernameError }}
+          </p>
+          <div class="mt-5 flex justify-end gap-2">
+            <button
+              type="button"
+              class="min-h-11 rounded-md border border-slate-300 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-indigo-500 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              @click="isUsernameModalOpen = false"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              :disabled="usernameLoading"
+              class="min-h-11 rounded-md bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-60"
+            >
+              {{ usernameLoading ? '提交中...' : '确认修改' }}
             </button>
           </div>
         </form>
