@@ -1,9 +1,5 @@
 name = "my-work-space"
 compatibility_date = "2026-10-06"
-pages_build_output_dir = "dist"
-
-[build]
-command = "npm run build"
 
 [[d1_databases]]
 binding = "DB"
