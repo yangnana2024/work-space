@@ -1,7 +1,0 @@
-name = "my-work-space"
-compatibility_date = "2026-10-06"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "my-work-space-db"
-database_id = "56c45b9d-0b53-4266-94ad-5c05a4cc84ec"
